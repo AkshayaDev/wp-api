@@ -23,6 +23,56 @@ function remove_product_from_cart( $product_id ) {
     unset( WC()->cart->cart_contents[$prod_unique_id] );
 }
 
+function lloyd_product_db_exists($userid,$productid,$remove) {
+    $option_name = 'usercart_'.$userid;
+    $productexists = false;
+    if (get_option( $option_name ) !== false) {
+            $cartdata = get_option( $option_name );
+            foreach($cartdata as $key => $cdata) {
+                if($cdata['product_id']==$productid) {
+                    $productexists = true;                    
+                    if($remove) {
+                        $rkey = $cdata['key'];
+                        unset($cartdata[$rkey]);
+                    }
+                }
+            }
+            if($remove) {
+             update_option('usercart_'.$userid, $cartdata);   
+            }
+            return $productexists;
+        } else {
+            return false;
+        }
+}
+
+function lloyd_format_cart_data($option_name) {
+$returndata = array();
+if (get_option( $option_name ) !== false) {
+    $cartdata = get_option($option_name);
+    $count = 0;
+    foreach($cartdata as $key => $cartp) {
+        $post_thumbnail_id = get_post_thumbnail_id($cartp['product_id']);
+        $full_size_image   = wp_get_attachment_image_src( $post_thumbnail_id, 'full' );
+        $returndata[$count]['product_id'] = $cartp['product_id'];
+        $returndata[$count]['product_Title'] = get_the_title($cartp['product_id']);
+        $returndata[$count]['product_Img_url'] = $full_size_image[0];
+        $returndata[$count]['product_wish_status'] = false;
+        $returndata[$count]['variation_id'] = $cartp['variation_id'];
+        $returndata[$count]['variation'] = $cartp['variation'];
+        $returndata[$count]['quantity'] = $cartp['quantity'];
+        $returndata[$count]['line_tax_data'] = $cartp['line_tax_data'];
+        $returndata[$count]['line_subtotal'] = $cartp['line_subtotal'];
+        $returndata[$count]['line_subtotal_tax'] = $cartp['line_subtotal_tax'];
+        $returndata[$count]['line_total'] = $cartp['line_total'];
+        $returndata[$count]['line_tax'] = $cartp['line_tax'];
+        $returndata[$count]['data'] = $cartp['data'];
+        $count++;
+    }
+}
+return $returndata;
+}
+
 add_action( 'rest_api_init', 'add_to_cart_custom_api');
 
 function add_to_cart_custom_api() {
@@ -66,6 +116,7 @@ function add_product_to_cart($data) {
                     'message' => 'product successfully added to cart',
                     'cart' => WC()->cart->get_cart()
                 );
+                update_option('usercart_'.$apiuserid, '' );
                 update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
                 return new WP_REST_Response( $return, 200 );
             }else{
@@ -84,6 +135,7 @@ function add_product_to_cart($data) {
                             'message' => 'product successfully added to cart',
                             'cart' => WC()->cart->get_cart()
                         );
+                        update_option('usercart_'.$apiuserid, '' );
                         update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
                         return new WP_REST_Response( $return, 200 );
                     }
@@ -103,6 +155,7 @@ function add_product_to_cart($data) {
                             'message' => 'product successfully added to cart',
                             'cart' => WC()->cart->get_cart()
                         );
+                        update_option('usercart_'.$apiuserid, '' );
                         update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
                         return new WP_REST_Response( $return, 200 );
                     }
@@ -159,6 +212,7 @@ function update_product_to_cart($data) {
                     'message' => 'product successfully updated to cart',
                     'cart' => WC()->cart->get_cart()
                 );
+                update_option('usercart_'.$apiuserid, '' );
                 update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
                 return new WP_REST_Response( $return, 200 );
             }else{
@@ -178,6 +232,7 @@ function update_product_to_cart($data) {
                             'message' => 'product successfully updated to cart',
                             'cart' => WC()->cart->get_cart()
                         );
+                        update_option('usercart_'.$apiuserid, '' );
                         update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
                         return new WP_REST_Response( $return, 200 );
                     }
@@ -198,6 +253,7 @@ function update_product_to_cart($data) {
                             'message' => 'product successfully updated to cart',
                             'cart' => WC()->cart->get_cart()
                         );
+                        update_option('usercart_'.$apiuserid, '' );
                         update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
                         return new WP_REST_Response( $return, 200 );
                     }
@@ -271,14 +327,22 @@ function delete_product_from_lloyd_cart($data) {
             );
         return new WP_REST_Response( $return, 200 );
 	}
-    
-    if(WC()->cart->is_empty()) {
-       $return = array(
+	
+	if(!llyod_does_user_exist($data['id'])) {
+	    $return = array(
             'error' => 0,
-            'message' => 'cart is empty'
+            'message' => 'user not found'
         );
         return new WP_REST_Response( $return, 200 );
-    }else{
+	}
+	
+	// check product exists in database
+	if(lloyd_product_db_exists($apiuserid,$data['productid'])) {
+	    // remove product from db
+	   lloyd_product_db_exists($apiuserid,$data['productid'],true); 
+	}
+    
+    if(!WC()->cart->is_empty()) {
         $product_exists_in_cart = false;
         foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item){
             $cart_item_id = $cart_item['data']->id;
@@ -293,6 +357,7 @@ function delete_product_from_lloyd_cart($data) {
             'error' => 1,
             'message' => 'product removed from cart'
             );
+        update_option('usercart_'.$apiuserid, '' );
         update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
         return new WP_REST_Response( $return, 200 );
         }
@@ -316,7 +381,7 @@ function get_stored_lloyd_cart($data) {
             $return = array(
             'error' => 1,
             'message' => 'cart data found',
-            'cart' => get_option($option_name)
+            'cart' => lloyd_format_cart_data($option_name)
             );
             return new WP_REST_Response( $return, 200 );
         } else {

@@ -4,7 +4,7 @@ error_reporting(0);
  * Does this user exist?
  *
  * @param  int|string|WP_User $user_id User ID or object.
- * @return bool                        Whether the user exists.
+ * @return bool Whether the user exists.
  */
 function llyod_does_user_exist($user_id = '') {
 	if ( $user_id instanceof WP_User ) {
@@ -23,6 +23,10 @@ function remove_product_from_cart( $product_id ) {
     unset( WC()->cart->cart_contents[$prod_unique_id] );
 }
 
+/**
+ * product exist in db?
+ * @return bool Whether the product exists.
+ */
 function lloyd_product_db_exists($userid,$productid,$remove) {
     $option_name = 'usercart_'.$userid;
     $productexists = false;
@@ -46,6 +50,10 @@ function lloyd_product_db_exists($userid,$productid,$remove) {
         }
 }
 
+/**
+ * Format db cart data
+ * @return array cart data.
+ */
 function lloyd_format_cart_data($option_name) {
 $returndata = array();
 if (get_option( $option_name ) !== false) {

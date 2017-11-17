@@ -65,10 +65,12 @@ if (get_option( $option_name ) !== false) {
         $returndata[$count]['product_id'] = $cartp['product_id'];
         $returndata[$count]['product_Title'] = get_the_title($cartp['product_id']);
         $returndata[$count]['product_Img_url'] = $full_size_image[0];
+        $returndata[$count]['product_sale_price'] = get_post_meta($cartp['product_id'], '_sale_price', true );
+        $returndata[$count]['product_regular_price'] = get_post_meta($cartp['product_id'], '_regular_price', true );
         $returndata[$count]['product_wish_status'] = false;
         $returndata[$count]['variation_id'] = $cartp['variation_id'];
         $returndata[$count]['variation'] = $cartp['variation'];
-        $returndata[$count]['quantity'] = $cartp['quantity'];
+        $returndata[$count]['quantity'] = (int)$cartp['quantity'];
         $returndata[$count]['line_tax_data'] = $cartp['line_tax_data'];
         $returndata[$count]['line_subtotal'] = $cartp['line_subtotal'];
         $returndata[$count]['line_subtotal_tax'] = $cartp['line_subtotal_tax'];
@@ -369,6 +371,12 @@ function delete_product_from_lloyd_cart($data) {
         update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
         return new WP_REST_Response( $return, 200 );
         }
+    }else{
+        $return = array(
+            'error' => 0,
+            'message' => 'product not exists'
+            );
+        return new WP_REST_Response( $return, 200 );
     }
 }
 
@@ -385,7 +393,16 @@ function get_stored_lloyd_cart($data) {
     $apiuserid = $data['id'];
     $option_name = 'usercart_'.$apiuserid;
     if(llyod_does_user_exist($data['id'])) {
-        if (get_option( $option_name ) !== false) {
+        if (get_option($option_name) !== false) {
+            
+            if(empty(get_option($option_name))) {
+                $return = array(
+                    'error' => 0,
+                    'message' => 'cart data not exists'
+                );
+                return new WP_REST_Response( $return, 200 );    
+            }
+            
             $return = array(
             'error' => 1,
             'message' => 'cart data found',

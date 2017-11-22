@@ -312,10 +312,24 @@ function create_orders_api($data) {
 	$order->set_created_via('rest-api');
 	$order->set_customer_id($data['user_id']);
 	$order->set_currency( get_woocommerce_currency() );
-	WC()->cart->empty_cart();
-	update_option('usercart_'.$apiuserid, '' );
 	// Save the order.
-	return $order_id = $order->save();
+	$order_id = $order->save();
+	if($order_id) {
+	    WC()->cart->empty_cart();
+	    update_option('usercart_'.$apiuserid, '' );
+        $return = array(
+            'error' => 1,
+            'message' => 'Order Placed Successfully',
+            'orderid' => $order_id
+        );
+        return new WP_REST_Response( $return, 200 );
+	}else{
+	   $return = array(
+            'error' => 0,
+            'message' => 'Something Went Wrong',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}
 }
 
 add_action( 'rest_api_init', 'delete_product_custom_api');
@@ -349,7 +363,12 @@ function delete_product_from_lloyd_cart($data) {
 	// check product exists in database
 	if(lloyd_product_db_exists($apiuserid,$data['productid'])) {
 	    // remove product from db
-	   lloyd_product_db_exists($apiuserid,$data['productid'],true); 
+	   lloyd_product_db_exists($apiuserid,$data['productid'],true);
+	   $return = array(
+            'error' => 1,
+            'message' => 'product removed from cart'
+            );
+       return new WP_REST_Response( $return, 200 );     
 	}
     
     if(!WC()->cart->is_empty()) {
@@ -374,7 +393,7 @@ function delete_product_from_lloyd_cart($data) {
     }else{
         $return = array(
             'error' => 0,
-            'message' => 'product not exists'
+            'message' => 'Something went wrong'
             );
         return new WP_REST_Response( $return, 200 );
     }

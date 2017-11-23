@@ -50,6 +50,22 @@ function lloyd_product_db_exists($userid,$productid,$remove) {
         }
 }
 
+function lloyd_product_db_update($userid,$productid,$quantity) {
+    $option_name = 'usercart_'.$userid;
+    if (get_option( $option_name ) !== false) {
+            $cartdata = get_option( $option_name );
+            foreach($cartdata as $key => $cdata) {
+                if($cdata['product_id']==$productid) {
+                    
+                }
+            }
+            update_option('usercart_'.$userid, $cartdata);
+            return get_option( $option_name );
+        } else {
+            return false;
+        }
+}
+
 /**
  * Format db cart data
  * @return array cart data.
@@ -153,22 +169,22 @@ function add_product_to_cart($data) {
         }else{
             // force login user
             $napiuser = get_user_by( 'id', $data['id']); 
-                    if($napiuser) {
-                        wp_set_current_user($data['id'], $napiuser->user_login );
-                        wp_set_auth_cookie($data['id']);
-                        do_action( 'wp_login', $napiuser->user_login );
-                        // Clear current cart
-                        //WC()->cart->empty_cart();
-                        WC()->cart->add_to_cart($data['productid'], $data['quantity'] );
-                        $return = array(
-                            'error' => 1,
-                            'message' => 'product successfully added to cart',
-                            'cart' => WC()->cart->get_cart()
-                        );
-                        update_option('usercart_'.$apiuserid, '' );
-                        update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
-                        return new WP_REST_Response( $return, 200 );
-                    }
+            if($napiuser) {
+                wp_set_current_user($data['id'], $napiuser->user_login );
+                wp_set_auth_cookie($data['id']);
+                do_action('wp_login', $napiuser->user_login);
+                // Clear current cart
+                //WC()->cart->empty_cart();
+                WC()->cart->add_to_cart($data['productid'], $data['quantity']);
+                $return = array(
+                    'error' => 1,
+                    'message' => 'product successfully added',
+                    'cart' => WC()->cart->get_cart()
+                );
+                //update_option('usercart_'.$apiuserid, '' );
+                update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
+                return new WP_REST_Response( $return, 200 );
+            }
         }
     }else{
         $return = array(
@@ -250,23 +266,23 @@ function update_product_to_cart($data) {
         }else{
             // force login user
             $napiuser = get_user_by( 'id', $data['id']); 
-                    if($napiuser) {
-                        wp_set_current_user($data['id'], $napiuser->user_login );
-                        wp_set_auth_cookie($data['id']);
-                        do_action( 'wp_login', $napiuser->user_login );
-                        // Clear current cart
-                        //WC()->cart->empty_cart();
-                        remove_product_from_cart( $data['productid'] );
-                        WC()->cart->add_to_cart($data['productid'], $data['quantity'] );
-                        $return = array(
-                            'error' => 1,
-                            'message' => 'product successfully updated to cart',
-                            'cart' => WC()->cart->get_cart()
-                        );
-                        update_option('usercart_'.$apiuserid, '' );
-                        update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
-                        return new WP_REST_Response( $return, 200 );
-                    }
+            if($napiuser) {
+                wp_set_current_user($data['id'], $napiuser->user_login );
+                wp_set_auth_cookie($data['id']);
+                do_action( 'wp_login', $napiuser->user_login );
+                // Clear current cart
+                //WC()->cart->empty_cart();
+                remove_product_from_cart( $data['productid'] );
+                WC()->cart->add_to_cart($data['productid'], $data['quantity'] );
+                $return = array(
+                    'error' => 1,
+                    'message' => 'product successfully updated to cart',
+                    'cart' => WC()->cart->get_cart()
+                );
+                update_option('usercart_'.$apiuserid, '' );
+                update_option('usercart_'.$apiuserid, WC()->cart->get_cart() );
+                return new WP_REST_Response( $return, 200 );
+            }
         }
     }else{
         $return = array(
@@ -289,18 +305,40 @@ function create_order_custom_api() {
 function create_orders_api($data) {
     global $woocommerce;
     $apiuserid = $data['user_id'];
+    
+    if(!llyod_does_user_exist($data['user_id'])) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'user not found'
+        );
+        return new WP_REST_Response( $return, 200 );
+	}
 	// Now we create the order
 	$order = wc_create_order();
 	
-	if(!empty($data['products'])) {
-	    foreach($data['products'] as $productid => $product_qunatity) {
+	if(empty($data['products'])) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'Product not exists',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}else{
+        foreach($data['products'] as $productid => $product_qunatity) {
 	        $order->add_product( get_product($productid), $product_qunatity);
 	    }
 	}
 	
-	// Set addresses
-	$order->set_address($data['address'], 'billing' );
-	$order->set_address($data['address'], 'shipping' );
+	if(empty($data['address'])) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'Address is empty',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}else{
+	    // Set addresses
+    	$order->set_address($data['address'], 'billing' );
+	    $order->set_address($data['address'], 'shipping' );   
+	}
 	
 	// Set payment gateway
 	$payment_gateways = WC()->payment_gateways->payment_gateways();
@@ -311,7 +349,7 @@ function create_orders_api($data) {
 	$order->update_status( 'Completed', 'Order created dynamically - ', TRUE);
 	$order->set_created_via('rest-api');
 	$order->set_customer_id($data['user_id']);
-	$order->set_currency( get_woocommerce_currency() );
+	$order->set_currency(get_woocommerce_currency());
 	// Save the order.
 	$order_id = $order->save();
 	if($order_id) {
@@ -442,4 +480,108 @@ function get_stored_lloyd_cart($data) {
         );
         return new WP_REST_Response( $return, 200 );
     }
+}
+
+add_action( 'rest_api_init', 'create_order_custom_api_v2');
+
+function create_order_custom_api_v2() {
+    register_rest_route( 'orders/v2', '/createorder/', array(
+        'methods' => 'POST',
+        'callback' => 'create_orders_api_v2',
+    ));
+}
+
+function create_orders_api_v2($data) {
+    $requestbody = $data->get_body();
+    $requestbody = json_decode($requestbody,true);
+    $user_id = $requestbody['user_id'];
+    $products = $requestbody['products'];
+    $address = $requestbody['address'];
+    $payment_details = $requestbody['payment_details'];
+    
+    // check for user
+    if(empty($user_id) || !llyod_does_user_exist($user_id)) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'user not found'
+        );
+        return new WP_REST_Response( $return, 200 );
+	}
+	
+	// check for products
+	if(empty($products)) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'Product not exists',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}
+	
+	//check for address
+	if(empty($address)) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'address is empty',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}
+	
+	// payment details
+	if(empty($payment_details)) {
+	    $return = array(
+            'error' => 0,
+            'message' => 'payment details is empty',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}	
+	
+	// Now we create the order
+	$order = wc_create_order();
+	
+	// Set addresses
+    $order->set_address($address, 'billing' );
+	$order->set_address($address, 'shipping' );
+	
+	if(!empty($products) && is_array($products)) {
+	    foreach($products as $productid => $product_qunatity) {
+	        $order->add_product( get_product($productid), $product_qunatity);
+	    }
+	}
+	
+	// Set payment gateway
+	$payment_gateways = WC()->payment_gateways->payment_gateways();
+	$order->set_payment_method( $payment_gateways['paypal'] );
+	
+	// Calculate totals
+	$order->calculate_totals();
+	$order->update_status('Completed', 'Order created dynamically - ', TRUE);
+	$order->set_created_via('rest-api');
+	$order->set_customer_id($user_id);
+	$order->set_currency(get_woocommerce_currency());
+	$order->set_date_created( current_time( 'timestamp', true ) );
+	$order->update_status('completed');
+	$order->add_order_note( sprintf( __( 'Payment captured, Transaction ID: %1$s', 'woocommerce' ), $payment_details['id'] ) );
+	// Save the order.
+	$order_id = $order->save();
+	if($order_id) {
+	    WC()->cart->empty_cart();
+	    update_option('usercart_'.$user_id, '' );
+	    // save payment details in order meta
+	    update_post_meta($order_id,'_transaction_id',$payment_details['id']);
+	    update_post_meta($order_id,'intent',$payment_details['intent']);
+	    update_post_meta($order_id,'state',$payment_details['state']);
+	    update_post_meta($order_id,'create_time',$payment_details['create_time']);
+        $return = array(
+            'error' => 1,
+            'message' => 'Order Placed Successfully',
+            'orderid' => $order_id
+        );
+        return new WP_REST_Response( $return, 200 );
+	}else{
+	   $return = array(
+            'error' => 0,
+            'message' => 'Something Went Wrong',
+        );
+        return new WP_REST_Response( $return, 200 );
+	}
 }
